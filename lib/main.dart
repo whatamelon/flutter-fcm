@@ -4,10 +4,22 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_webview_plugin/flutter_webview_plugin.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:rxdart/subjects.dart';
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
-final FirebaseMessaging _firebaseMessaging = FirebaseMessaging();
+ void main() {
+  runApp(MyApp());
+}
 
-void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
   @override
@@ -34,7 +46,6 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-
   @override
   State<StatefulWidget> createState() {
     return _MyHomePage();
@@ -42,86 +53,71 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePage extends State<MyHomePage> {
-  List<String> cards = new List();
-  ScrollController _scrollController = new ScrollController();
+
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging();
+  var _pushNoti;
 
   @override
-  void initState() {
+  initState() {
     super.initState();
-    fetchFive();
-    _scrollController.addListener(() {
-      if(_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
-        fetchFive();
-      }
-    });
-    firebaseCloudMessaging_Listeners();
+    _initFirebaseMessaging();
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
     super.dispose();
+  }
+
+  _initFirebaseMessaging() {
+    _firebaseMessaging.configure(
+      onMessage: (Map<String, dynamic> message) {
+        print('AppPushs onMessage : $message');
+        setState(() {
+          _pushNoti = message;
+        });
+        return;
+      },
+      onBackgroundMessage: Platform.isIOS ? null : myBackgroundMessageHandler,
+      onResume: (Map<String, dynamic> message) {
+        print('AppPushs onResume : $message');
+        setState(() {
+          _pushNoti = message;
+        });
+        return;
+      },
+      onLaunch: (Map<String, dynamic> message) {
+        print('AppPushs onLaunch : $message');
+        setState(() {
+          _pushNoti = message;
+        });
+        return;
+      },
+    );
+    _firebaseMessaging.requestNotificationPermissions(const IosNotificationSettings(sound: true, badge: true, alert: true));
+  }
+
+  // TOP-LEVEL or STATIC function to handle background messages
+  static Future<dynamic> myBackgroundMessageHandler(Map<String, dynamic> message) {
+    print('AppPushs myBackgroundMessageHandler : $message');
+    return Future<void>.value();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-        controller: _scrollController,
-        itemCount: cards.length,
-        itemBuilder: (BuildContext context, int index) {
-          return Container(
-              constraints: BoxConstraints.tightFor(height: 150.0),
-              child: Image.network(cards[index], fit: BoxFit.fitWidth,)
-          );
-        }
-      );
-  }
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('noti test'),
+      ),
+      body: Column(
+        children: <Widget>[
+          Container(
+            child: Text('${_pushNoti.toString()}', style: TextStyle(color: Colors.black),),
 
-  fetch() async {
-    final response = await http.get('https://dog.ceo/api/breeds/image/random');
-    if (response.statusCode == 200) {
-      setState(() {
-        cards.add(json.decode(response.body)['message']);
-      });
-    } else {
-      throw Exception('Failed to load images');
-    }
-  }
+          ),
+        ],
 
-  fetchFive() {
-    for(int i = 0; i < 5; i++) {
-      fetch();
-    }
-  }
-
-  void firebaseCloudMessaging_Listeners() {
-    if (Platform.isIOS) iOS_Permission();
-
-    _firebaseMessaging.getToken().then((token){
-      print('token:'+token);
-    });
-
-    _firebaseMessaging.configure(
-      onMessage: (Map<String, dynamic> message) async {
-        print('on message $message');
-      },
-      onResume: (Map<String, dynamic> message) async {
-        print('on resume $message');
-      },
-      onLaunch: (Map<String, dynamic> message) async {
-        print('on launch $message');
-      },
+      )
     );
   }
 
-  void iOS_Permission() {
-    _firebaseMessaging.requestNotificationPermissions(
-        IosNotificationSettings(sound: true, badge: true, alert: true)
-    );
-    _firebaseMessaging.onIosSettingsRegistered
-        .listen((IosNotificationSettings settings)
-    {
-      print("Settings registered: $settings");
-    });
-  }
 }
